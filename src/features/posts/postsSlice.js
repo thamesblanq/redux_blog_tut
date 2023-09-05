@@ -32,6 +32,32 @@ export const addNewPost = createAsyncThunk('posts/addNewPost', async (initialPos
     return response.data
 })
 
+//EDITING POSTS ASYNC
+export const updatePost = createAsyncThunk('posts/updatePost', async (initialPost) => {
+    const { id } = initialPost;
+    try{
+        const response = await axios.put(`${POSTS_URL}/${id}`, initialPost)
+        return response.data
+    } catch(err){
+        //return err.message
+        return initialPost;//testing purposes.... the update doesnt work becaause the post id doesnt exist on the url database...
+    }
+
+})
+
+//DELETING POSTS ASYNC
+export const deletePost = createAsyncThunk('posts/deletePost', async (initialPost) => {
+    const { id } = initialPost;
+    try{
+        const response = await axios.delete(`${POSTS_URL}/${id}`)
+        if (response?.status === 200) return initialPost;
+        return `${response?.status}: ${response?.statusText}`;
+    } catch(err){
+        return err.message
+    }
+
+})
+
 const postsSlice = createSlice({
     name: 'posts',
     initialState,
@@ -112,13 +138,46 @@ const postsSlice = createSlice({
                 action.payload.date = new Date().toISOString();
                 action.payload.reactions = {
                     thumbsUp: 0,
-                    hooray: 0,
+                    wow: 0,
                     heart: 0,
                     rocket: 0,
-                    eyes: 0
+                    coffee: 0
                 }
                 console.log(action.payload)
                 state.posts.push(action.payload)
+            })
+            .addCase(updatePost.fulfilled, (state, action) => {
+                if(!action.payload?.id) {
+                    console.log('Update could not be completed')
+                    console.log(action.payload)
+                    return;
+                }
+
+                //creating a new date and using the former id for edited post
+                const { id } = action.payload;//id from payload
+                action.payload.date = new Date().toISOString();//setting a new date
+
+                //creating a shallow array for other posts objects...
+                const posts = state.posts.filter(post => post.id !== id);
+
+                //adding the edited post to the shallow array created and making it the new post state 
+                state.posts = [...posts, action.payload];
+            })
+            .addCase(deletePost.fulfilled, (state, action) => {
+                //checking if action.payload or id is available...
+                if (!action.payload?.id) {
+                    console.log('Delete could not be completed');
+                    console.log(action.payload);
+                    return;
+                }
+                //destructuring id from action.payload
+                const { id } = action.payload;
+
+                //creating a shallow array to hold the posts
+                const posts = state.posts.filter(post => post.id !== id);
+
+                //setting the posts state to the newly shallow array created
+                state.posts = posts;
             })
     }
 })
@@ -126,6 +185,7 @@ const postsSlice = createSlice({
 export const selectAllPosts = (state) => state.posts.posts;
 export const getPostsStatus = (state) => state.posts.status;
 export const getPostsError = (state) => state.posts.error;
+export const selectPostById = (state, postId) => state.posts.posts.find(post => post.id === postId);  
 
 export const { postAdded, reactionAdded } = postsSlice.actions
 
