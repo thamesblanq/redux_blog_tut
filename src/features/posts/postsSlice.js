@@ -1,14 +1,17 @@
-import { createSlice, nanoid, createAsyncThunk } from "@reduxjs/toolkit";
+import { createSlice, createAsyncThunk, createSelector, createEntityAdapter } from "@reduxjs/toolkit";
 import { sub } from 'date-fns';
 import axios from "axios";
 
 const POSTS_URL = 'https://jsonplaceholder.typicode.com/posts';
+const postsAdapter = createEntityAdapter({
+    sortComparer: (a, b) => b.date.localeCompare(a.date)
+})
 
-const initialState = {
-    posts: [],
+const initialState = postsAdapter.getInitialState({
     status: 'idle', //'idle' | 'loading' | 'succeeded' | 'failed'
-    error: null
-}
+    error: null,
+    count: 0
+})
 
 
 //getting all posts from the URL
@@ -62,35 +65,15 @@ const postsSlice = createSlice({
     name: 'posts',
     initialState,
     reducers: {
-        postAdded: {
-            reducer(state, action) {
-                state.posts.push(action.payload)
-            },
-            prepare(title, content, userId) {
-                return {
-                    payload: {
-                        id: nanoid(),
-                        title,
-                        content,
-                        date: new Date().toISOString(),
-                        userId,
-                        reactions: {
-                            thumbsUp: 0,
-                            wow: 0,
-                            heart: 0,
-                            rocket: 0,
-                            coffee: 0
-                        }
-                    }
-                }
-            }
-        },
         reactionAdded(state, action) {
             const { postId, reaction } = action.payload
-            const existingPost = state.posts.find(post => post.id === postId)
+            const existingPost = state.entities[postId]
             if (existingPost) {
                 existingPost.reactions[reaction]++
             }
+        },
+        increaseCount(state, action) {
+            state.count = state.count + 1
         }
     },
     extraReducers(builder) {
@@ -115,7 +98,7 @@ const postsSlice = createSlice({
                 });
 
                 // Add any fetched posts to the array
-                state.posts = state.posts.concat(loadedPosts)
+                postsAdapter.upsertMany(state, loadedPosts);
             })
             .addCase(fetchPosts.rejected, (state, action) => {
                 state.status = 'failed'
@@ -144,7 +127,7 @@ const postsSlice = createSlice({
                     coffee: 0
                 }
                 console.log(action.payload)
-                state.posts.push(action.payload)
+                postsAdapter.addOne(state, action.payload)
             })
             .addCase(updatePost.fulfilled, (state, action) => {
                 if(!action.payload?.id) {
@@ -154,14 +137,10 @@ const postsSlice = createSlice({
                 }
 
                 //creating a new date and using the former id for edited post
-                const { id } = action.payload;//id from payload
                 action.payload.date = new Date().toISOString();//setting a new date
 
-                //creating a shallow array for other posts objects...
-                const posts = state.posts.filter(post => post.id !== id);
-
                 //adding the edited post to the shallow array created and making it the new post state 
-                state.posts = [...posts, action.payload];
+                postsAdapter.upsertOne(state, action.payload)
             })
             .addCase(deletePost.fulfilled, (state, action) => {
                 //checking if action.payload or id is available...
@@ -173,20 +152,35 @@ const postsSlice = createSlice({
                 //destructuring id from action.payload
                 const { id } = action.payload;
 
-                //creating a shallow array to hold the posts
-                const posts = state.posts.filter(post => post.id !== id);
-
                 //setting the posts state to the newly shallow array created
-                state.posts = posts;
+                postsAdapter.removeOne(state, id)
             })
     }
 })
 
-export const selectAllPosts = (state) => state.posts.posts;
+
+//getSelectors create these selectors... we then use ES6 aliases to rename the selectors
+export const {
+    selectAll: selectAllPosts,
+    selectById: selectPostById,
+    selectIds: selectPostIds
+} = postsAdapter.getSelectors(state => state.posts)
+
+
 export const getPostsStatus = (state) => state.posts.status;
 export const getPostsError = (state) => state.posts.error;
-export const selectPostById = (state, postId) => state.posts.posts.find(post => post.id === postId);  
+export const getCount = (state) => state.posts.count;
 
-export const { postAdded, reactionAdded } = postsSlice.actions
+
+
+//createSelector first parameter is a dependency, which means that if there is a change in the dependency it will re-render and the second parameter is... i don't know
+export const selectPostsByUser = createSelector(
+    [selectAllPosts, (state, userId) => userId],
+    (posts, userId) => posts.filter(post => post.userId === userId)
+) 
+
+
+
+export const { increaseCount, reactionAdded } = postsSlice.actions
 
 export default postsSlice.reducer

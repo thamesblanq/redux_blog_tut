@@ -3,7 +3,9 @@ import AddPostForm from "./features/posts/AddPostForm";
 import SinglePostPage from "./features/posts/SinglePostPage";
 import Layout from "./components/Layout";
 import EditPostForm from "./features/posts/EditPostForm";
-import { Routes, Route } from "react-router-dom";
+import UserPage from "./features/users/UserPage";
+import UsersList from "./features/users/UsersList";
+import { Routes, Route, Navigate } from "react-router-dom";
 
 
 function App() {
@@ -19,6 +21,14 @@ function App() {
               <Route path=":postId" element={<SinglePostPage />} />
               <Route path="edit/:postId" element={<EditPostForm />} />
             </Route>
+
+            <Route path="user" >
+              <Route index element={<UsersList />} /> 
+              <Route path=":userId" element={<UserPage />} />
+            </Route>
+
+              {/* replace with a 404 page-- this is also a redirect page */}
+            <Route path="*" element={<Navigate to="/" replace/>} />
 
         </Route>
       </Routes>  
